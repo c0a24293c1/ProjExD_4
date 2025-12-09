@@ -149,14 +149,14 @@ class Beam(pg.sprite.Sprite):
     """
     ビームに関するクラス
     """
-    def __init__(self, bird: Bird):
+    def __init__(self, bird: Bird, angle0: int):
         """
         ビーム画像Surfaceを生成する
         引数 bird：ビームを放つこうかとん
         """
         super().__init__()
         self.vx, self.vy = bird.dire
-        angle = math.degrees(math.atan2(-self.vy, self.vx))
+        angle = math.degrees(math.atan2(-self.vy, self.vx)) + angle0
         self.image = pg.transform.rotozoom(pg.image.load(f"fig/beam.png"), angle, 1.0)
         self.vx = math.cos(math.radians(angle))
         self.vy = -math.sin(math.radians(angle))
@@ -175,6 +175,23 @@ class Beam(pg.sprite.Sprite):
             self.kill()
 
 
+class NeoBeam(pg.sprite.Sprite):
+    """
+    弾幕に関するクラス
+    """
+    def __init__(self, bird: Bird, num: int, *groups):
+        super().__init__(*groups)
+        self.bird = bird
+        self.num = num
+
+    @staticmethod
+    def gen_beam(bird:Bird, num: int):
+        tmp = 100//(num-1)
+        angles = []
+        beams = []
+        angles = list(range(-50, +51, tmp))
+        beams = [Beam(bird, angle) for angle in angles]
+        return beams
 class Explosion(pg.sprite.Sprite):
     """
     爆発に関するクラス
@@ -355,7 +372,7 @@ def main():
             if event.type == pg.QUIT:
                 return 0
             if event.type == pg.KEYDOWN and event.key == pg.K_SPACE:
-                beams.add(Beam(bird))
+                beams.add(Beam(bird,0)) # 左シフトを押されたら複数発射
             if event.type == pg.KEYDOWN and event.key == pg.K_RETURN:
                 if score.value >= 200:
                     score.value -= 200  #スコア200消費
@@ -375,6 +392,10 @@ def main():
                     shields.add(Shield(bird, 400))
                     score.value -= 50
 
+                beams.add(Beam(bird, 0))
+            if event.type == pg.KEYDOWN and event.key == pg.K_SPACE and key_lst[pg.K_LSHIFT]:
+                neobeam = NeoBeam.gen_beam(bird, 5)
+                beams.add(*neobeam)
         screen.blit(bg_img, [0, 0])
 
         if tmr%200 == 0:
@@ -408,21 +429,16 @@ def main():
                 # 起爆せずに消滅する
                 pass
             else:  # 通常の爆弾の場合
-                bird.change_img(8, screen)  # こうかとん悲しみエフェクト
-                score.update(screen) # スコア表示更新
-                pg.display.update()
-                time.sleep(2) # 2秒間表示
-                return
+                if bird.state == "hyper":  # 無敵状態の場合
+                    exps.add(Explosion(bomb, 50))  # 爆発エフェクト
+                    score.value += 1  # 1点アップ
+                else:
+                    bird.change_img(8, screen)  # こうかとん悲しみエフェクト
+                    score.update(screen) # スコア表示更新
+                    pg.display.update()
+                    time.sleep(2) # 2秒間表示
+                    return
 
-            if bird.state == "hyper":  # 無敵状態の場合
-                exps.add(Explosion(bomb, 50))  # 爆発エフェクト
-                score.value += 1  # 1点アップ
-            else:
-                bird.change_img(8, screen)  # こうかとん悲しみエフェクト
-                score.update(screen)
-                pg.display.update()
-                time.sleep(2)
-                return
         # 追加機能5：防御壁と爆弾の衝突
         for bomb in pg.sprite.groupcollide(bombs, shields, True, False).keys():
             exps.add(Explosion(bomb, 50))
